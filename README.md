@@ -1,34 +1,138 @@
-# React + TypeScript + Vite
+# @canvas-glide/react
 
-This template provides a minimal setup to get React working in Vite with HMR and some Oxlint rules.
+React components and a hook for [canvas-glide](https://github.com/vrtexe/canvas-glide): pan, zoom and pinch-to-zoom for an image, or for any content you render, with mouse, touch, pen and wheel input.
 
-Currently, two official plugins are available:
+[![npm version](https://img.shields.io/npm/v/@canvas-glide/react.svg?style=flat-square)](https://www.npmjs.com/package/@canvas-glide/react)
+[![types](https://img.shields.io/npm/types/@canvas-glide/react.svg?style=flat-square)](https://github.com/vrtexe/canvas-glide-react/blob/main/src/GlideCanvas.tsx)
+[![license](https://img.shields.io/npm/l/@canvas-glide/react.svg?style=flat-square)](LICENSE.md)
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+[Live demo](https://vrtexe.github.io/canvas-glide-react-demo/)
 
-## React Compiler
+The package has two layers. `GlideCanvas` is a ready image viewer: give it a `Blob` and it shows the image fitted to its box, with drag to pan, wheel and pinch to zoom, and a ref for zoom buttons. `useGlideCanvas` and `Viewport` are the parts `GlideCanvas` is built from; use them to pan and zoom your own content. The package re-exports everything from `canvas-glide`, so one import covers the engine API too.
 
-The React Compiler is enabled on this template. See [this documentation](https://react.dev/learn/react-compiler) for more information.
+## Install
 
-Note: This will impact Vite dev & build performances.
+```sh
+npm install @canvas-glide/react
+```
 
-## Expanding the Oxlint configuration
+`canvas-glide` is a dependency and installs with it. `react` 19 is a peer dependency.
 
-If you are developing a production application, we recommend enabling type-aware lint rules by installing `oxlint-tsgolint` and editing `.oxlintrc.json`:
+## Image viewer
 
-```json
-{
-  "$schema": "./node_modules/oxlint/configuration_schema.json",
-  "plugins": ["react", "typescript", "oxc"],
-  "options": {
-    "typeAware": true
-  },
-  "rules": {
-    "react/rules-of-hooks": "error",
-    "react/only-export-components": ["warn", { "allowConstantExport": true }]
-  }
+```tsx
+import { useRef, useState } from 'react';
+import { GlideCanvas, Renderer, type GlideCanvasRef } from '@canvas-glide/react';
+
+export function Viewer() {
+  const [file, setFile] = useState<File | null>(null);
+  const viewer = useRef<GlideCanvasRef>(null);
+
+  return (
+    <>
+      <input type="file" accept="image/*" onChange={(e) => setFile(e.target.files?.[0] ?? null)} />
+      <button onClick={() => viewer.current?.zoomIn()}>+</button>
+      <button onClick={() => viewer.current?.zoomOut()}>−</button>
+      <button onClick={() => viewer.current?.fit()}>Fit</button>
+
+      <div style={{ width: 800, height: 500 }}>
+        <GlideCanvas ref={viewer} renderer={Renderer.Image} image={file} />
+      </div>
+    </>
+  );
 }
 ```
 
-See the [Oxlint rules documentation](https://oxc.rs/docs/guide/usage/linter/rules) for the full list of rules and categories.
+`GlideCanvas` fills its parent, so the parent needs a size. At scale 1 the image is fitted inside the box with its aspect ratio kept, and `fit()` returns to that view. By default the image can be panned until it just leaves the box, and no further.
+
+## Renderers
+
+`renderer` picks how the image is drawn. All three use the same engine and the same coordinates; a renderer calls `fit()` when its image has loaded, so switching renderers starts from the fitted view.
+
+| Renderer | How it draws | `canvasConfig.children` |
+|---|---|---|
+| `Renderer.Canvas` (default) | Draws the decoded bitmap into a `<canvas>` sized in device pixels. | Not rendered. |
+| `Renderer.Image` | Moves and scales an `<img>` with a CSS `transform`. | Rendered inside the transformed box, so overlays move and scale with the image. |
+| `Renderer.Html` | Resizes the `<img>` to the zoomed size and scrolls its container, with no CSS transform, so the browser rasterizes the image at its displayed size. | Rendered after the `<img>` inside the scrolled container. |
+
+## `GlideCanvas` props
+
+| Prop | Type | Usage |
+|---|---|---|
+| `image` | `Blob \| null` | The image to show. A `File` from an `<input type="file">` is a `Blob`. `null` clears the view. The image and HTML renderers load PNG, JPEG, GIF, WebP, AVIF and BMP through a `blob:` URL and every other type, such as SVG, through a `data:` URL, so a script inside an uploaded SVG cannot run in your page's origin. |
+| `renderer` | `Renderer` | `Renderer.Canvas` (default), `Renderer.Image` or `Renderer.Html`. |
+| `config` | engine options | The `canvas-glide` options except the two rect getters, which `GlideCanvas` supplies: `state`, `move`, `scale` and `constraints`. |
+| `viewportConfig` | `ViewportOptions` | Props for the outer `<div>`; see [Viewport](#viewport). |
+| `canvasConfig` | renderer options | `content` (props for the `<img>` or `<canvas>`), `container` (props for the wrapping element; for the canvas renderer, also the `<canvas>`), `children`, and `afterDraw(transform, ref)`, called after each frame. A renderer chosen at runtime cannot take `canvasConfig`. |
+| `ref` | `GlideCanvasRef` | Every engine method (`zoomIn`, `zoomOut`, `zoomTo`, `panTo`, `fit`, `center`, `reset`, `getTransform`, ...) plus `viewportRef` and `canvasRef`. |
+
+The engine methods are documented in the [canvas-glide README](https://github.com/vrtexe/canvas-glide#methods).
+
+`GlideCanvas` redraws once per animation frame. It calls `config.state.onTransformChange` once per frame with a copy of the transform, while `onScaleChange` and `onOriginChange` run on every input event.
+
+## Your own content
+
+`useGlideCanvas` creates the engine, and `Viewport` is the element that receives the input. This example pans and zooms a 1200 by 800 pixel `<div>`:
+
+```tsx
+import { useRef } from 'react';
+import { useGlideCanvas, Viewport, type ViewportRef } from '@canvas-glide/react';
+
+export function Board() {
+  const viewport = useRef<ViewportRef>(null);
+  const content = useRef<HTMLDivElement>(null);
+
+  const glide = useGlideCanvas({
+    getViewportRect: () => viewport.current?.getRect() ?? null,
+    getCanvasRect: () => ({ x: 0, y: 0, width: 1200, height: 800 }),
+    state: {
+      onTransformChange: ({ origin, scale }) => {
+        if (!content.current) return;
+        content.current.style.transform = `translate(${-origin.x * scale}px, ${-origin.y * scale}px) scale(${scale})`;
+      },
+    },
+  });
+
+  return (
+    <Viewport ref={viewport} lib={glide} style={{ width: 800, height: 500 }}>
+      <div ref={content} style={{ width: 1200, height: 800, transformOrigin: '0 0' }}>
+        Your content
+      </div>
+    </Viewport>
+  );
+}
+```
+
+`useGlideCanvas` adds an origin limit that keeps the content reachable, and passing `config.constraints.origin` replaces it. The hook creates the engine once: callbacks and the rect getters always use the latest props, while `move`, `scale`, `constraints` and `state.initial` are read when the component mounts. To apply new values for those, remount the component, for example by changing its `key`.
+
+## Viewport
+
+`Viewport` renders a `<div>` with `overflow: hidden`, `touch-action: none`, `user-select: none` and `overscroll-behavior: contain`, and attaches the engine's pointer handlers and a non-passive wheel listener. It accepts every `<div>` prop, and these:
+
+| Prop | Default | Usage |
+|---|---|---|
+| `lib` | none | The object returned by `useGlideCanvas`. |
+| `onResize` | none | Called with the `ViewportRef` when the element's size changes. |
+| `pointerDownEnabled`, `pointerMoveEnabled`, `pointerUpEnabled`, `pointerCancelEnabled` | `true` | `false` leaves that pointer event to the page. |
+| `wheelEnabled` | `true` | `false` removes the wheel listener, so the wheel does not zoom. |
+
+Its ref, `ViewportRef`, has `getElement()`, `getRect()` (the element's client rectangle, read on each call), `getClientWidth()` and `getClientHeight()` in CSS pixels, and `getWidth()` and `getHeight()` in device pixels.
+
+## Development
+
+`canvas-glide` is listed twice: `^1.0.1` in `dependencies` for consumers, and `../lib` in `devDependencies`, which npm links during local development. Build `lib` first, then:
+
+```sh
+npm install
+npm test
+npm run build
+npm run lint
+```
+
+`npm test` runs the Vitest suite in `test/` in jsdom, with the 2D context, `createImageBitmap` and `ResizeObserver` stubbed.
+
+`npm run build` type-checks with `tsc -b` and writes `dist/` with Vite: `canvas-glide.js` (ES module) and the type declarations. `canvas-glide`, `react` and `react/jsx-runtime` stay external.
+
+## License
+
+MIT, see [LICENSE.md](LICENSE.md).
