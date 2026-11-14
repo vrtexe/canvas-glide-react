@@ -16,6 +16,7 @@ export function useAsyncMemo<T>(
 ): T | null {
   const [value, setValue] = useState<T | null>(null);
 
+  /* oxlint-disable react-hooks/exhaustive-deps -- the caller passes the dependency list */
   useEffect(() => {
     let current = true;
     let produced: T | null = null;
@@ -44,6 +45,7 @@ export function useAsyncMemo<T>(
       setValue(null);
     };
   }, dependencies);
+  /* oxlint-enable react-hooks/exhaustive-deps */
 
   return value;
 }

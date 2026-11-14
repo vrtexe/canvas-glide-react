@@ -1,9 +1,9 @@
-import { useEffect, useImperativeHandle, useRef } from "react";
-import type { Renderer, RendererConfig, RendererRef } from "./base";
-import type { ViewportRef } from "../Viewport";
-import { useAsyncMemo } from "../util/asyncMemo";
-import { createImageBitmapSafe } from "../util/image";
-import { useIdealScale } from "../util/useIdealScale";
+import { useEffect, useImperativeHandle, useRef, useState } from "react";
+import type { Renderer, RendererConfig, RendererRef } from "./base.tsx";
+import type { ViewportRef } from "../Viewport.tsx";
+import { useAsyncMemo } from "../util/asyncMemo.ts";
+import { createImageBitmapSafe } from "../util/image.ts";
+import { useIdealScale } from "../util/useIdealScale.ts";
 import { type Transform } from "canvas-glide";
 
 export type CanvasRendererProps = RendererConfig<typeof Renderer.Canvas>;
@@ -33,7 +33,7 @@ export function Canvas({ viewportRef, ref, afterDraw, image, lib, container, con
   );
 
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const offscreenCanvas = useRef<OffscreenCanvas>(new OffscreenCanvas(0, 0));
+  const [offscreenCanvas] = useState(() => document.createElement("canvas"));
   const canvasContext = useRef<CanvasRenderingContext2D | null>(null);
 
   function applySmoothing(ctx: CanvasRenderingContext2D) {
@@ -44,16 +44,22 @@ export function Canvas({ viewportRef, ref, afterDraw, image, lib, container, con
   useEffect(() => {
     if (canvasContext.current) return;
     canvasContext.current = canvasRef?.current?.getContext("2d") || null;
-    canvasContext.current && applySmoothing(canvasContext.current);
+    if (canvasContext.current) applySmoothing(canvasContext.current);
   }, []);
 
   const { idealScale, updateIdealScale, getImageRect } = useIdealScale(viewportRef, () => ({
-    width: offscreenCanvas.current.width,
-    height: offscreenCanvas.current.height,
+    width: offscreenCanvas.width,
+    height: offscreenCanvas.height,
   }));
 
+  /* oxlint-disable react-hooks/exhaustive-deps -- runs only when the image changes */
   useEffect(() => {
-    if (!imageBitmap || !offscreenCanvas.current) return;
+    if (!imageBitmap) {
+      offscreenCanvas.width = 0;
+      offscreenCanvas.height = 0;
+      clear();
+      return;
+    }
 
     updateOffscreenCanvas(imageBitmap);
     handleViewportResize(viewportRef?.current);
@@ -64,9 +70,19 @@ export function Canvas({ viewportRef, ref, afterDraw, image, lib, container, con
     lib?.fit();
     draw(lib?.stateService.getTransform());
   }, [imageBitmap]);
+  /* oxlint-enable react-hooks/exhaustive-deps */
+
+  function clear() {
+    const canvas = canvasRef.current;
+    const ctx = canvasContext.current;
+    if (!canvas || !ctx) return;
+
+    ctx.resetTransform();
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+  }
 
   function draw(transform?: Transform) {
-    if (!canvasRef.current || !offscreenCanvas.current || !transform || !imageBitmap) return;
+    if (!canvasRef.current || !transform || !imageBitmap) return;
 
     const canvas = canvasRef.current;
     const scale = transform.scale;
@@ -76,22 +92,25 @@ export function Canvas({ viewportRef, ref, afterDraw, image, lib, container, con
     const ctx = canvasContext.current;
     if (!ctx) return;
 
+    // A devicePixelRatio change (window moved to another screen) does not resize the viewport, so check on every draw.
+    const viewport = viewportRef?.current;
+    if (viewport && (canvas.width !== Math.floor(viewport.getWidth()) || canvas.height !== Math.floor(viewport.getHeight()))) {
+      updateSize(viewport.getWidth(), viewport.getHeight());
+    }
+
     const dpr = window.devicePixelRatio || 1;
 
-    ctx.resetTransform();
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    clear();
 
-    // ctx.scale(scale * dpr, scale * dpr);
-    // ctx.translate(-originX, -originY);;
     const s = scale * dpr;
     ctx.setTransform(s, 0, 0, s, -originX * s, -originY * s);
 
     ctx.drawImage(
-      offscreenCanvas.current,
+      offscreenCanvas,
       0,
       0,
-      offscreenCanvas.current.width * idealScale.current,
-      offscreenCanvas.current.height * idealScale.current,
+      offscreenCanvas.width * idealScale.current,
+      offscreenCanvas.height * idealScale.current,
     );
 
     afterDraw?.(transform, externalRef);
@@ -102,9 +121,9 @@ export function Canvas({ viewportRef, ref, afterDraw, image, lib, container, con
   }
 
   function updateOffscreenCanvas(imageBitmap: ImageBitmap) {
-    offscreenCanvas.current.width = imageBitmap.width;
-    offscreenCanvas.current.height = imageBitmap.height;
-    const ctx = offscreenCanvas.current.getContext("2d");
+    offscreenCanvas.width = imageBitmap.width;
+    offscreenCanvas.height = imageBitmap.height;
+    const ctx = offscreenCanvas.getContext("2d");
     ctx?.drawImage(imageBitmap, 0, 0);
   }
 

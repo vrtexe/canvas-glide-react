@@ -1,12 +1,12 @@
 import { useEffect, useImperativeHandle, useRef, useState } from "react";
 import type { Ref } from "react";
-import { useGlideCanvas, type GlideCanvasInstance, type GlideCanvasOptions } from "./useGlideCanvas";
-import { Viewport, type ViewportRef } from "./Viewport";
-import { Canvas } from "./renderer/Canvas";
-import { ImageCanvas } from "./renderer/ImageCanvas";
-import { HtmlCanvas } from "./renderer/HtmlCanvas";
-import type { ViewportOptions } from "./Viewport";
-import { Renderer, type CanvasOptions, type RendererRef } from "./renderer/base";
+import { useGlideCanvas, type GlideCanvasInstance, type GlideCanvasOptions } from "./useGlideCanvas.ts";
+import { Viewport, type ViewportRef } from "./Viewport.tsx";
+import { Canvas } from "./renderer/Canvas.tsx";
+import { ImageCanvas } from "./renderer/ImageCanvas.tsx";
+import { HtmlCanvas } from "./renderer/HtmlCanvas.tsx";
+import type { ViewportOptions } from "./Viewport.tsx";
+import { Renderer, type CanvasOptions, type RendererRef } from "./renderer/base.tsx";
 import { copyTransform } from "canvas-glide";
 
 export type BaseGlideCanvasRef<R> = GlideCanvasInstance & {
@@ -16,7 +16,7 @@ export type BaseGlideCanvasRef<R> = GlideCanvasInstance & {
 export type GlideCanvasRef<T extends Renderer = Renderer> = BaseGlideCanvasRef<RendererRef[T]>;
 
 export type BaseGlideCanvasProps = {
-  config?: GlideCanvasOptions;
+  config?: Omit<GlideCanvasOptions, "getViewportRect" | "getCanvasRect">;
   viewportConfig?: ViewportOptions;
   image?: Blob | null;
   ref?: Ref<GlideCanvasRef>;
@@ -116,7 +116,7 @@ export function GlideCanvas(props: GlideCanvasProps) {
       lib={lib}
       {...props.viewportConfig}
       style={{
-        cursor: isMoving ? "grabbing" : lib ? "grab" : "default",
+        cursor: isMoving ? "grabbing" : lib.isPanEnabled() ? "grab" : "default",
         ...props.viewportConfig?.style,
       }}
       onResize={onViewportResize}

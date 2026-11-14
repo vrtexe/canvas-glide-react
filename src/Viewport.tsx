@@ -1,13 +1,17 @@
 import { useEffect, useImperativeHandle, useRef, type HTMLProps, type PropsWithChildren, type Ref } from "react";
-import type { GlideCanvasInstance } from "./useGlideCanvas";
-import { attachEvent, attachWheelEvent } from "./util/event";
+import type { GlideCanvasInstance } from "./useGlideCanvas.ts";
+import { attachWheelEvent } from "./util/event.ts";
 
 export type ViewportRef = {
   getElement: () => HTMLDivElement | null;
+  /** Width in CSS pixels. */
   getClientWidth: () => number;
+  /** Height in CSS pixels. */
   getClientHeight: () => number;
   getRect: () => DOMRect | null;
+  /** Width in device pixels (CSS pixels × devicePixelRatio). */
   getWidth: () => number;
+  /** Height in device pixels (CSS pixels × devicePixelRatio). */
   getHeight: () => number;
 };
 
@@ -54,7 +58,6 @@ export function Viewport({
   ...rest
 }: PropsWithChildren<ViewportProps>) {
   const elementRef = useRef<HTMLDivElement>(null);
-  const rect = useRef(elementRef?.current?.getBoundingClientRect());
   const onResizeRef = useRef(onResize);
   onResizeRef.current = onResize;
 
@@ -76,27 +79,16 @@ export function Viewport({
   useEffect(() => {
     if (lib?.onWheel === undefined || wheelEnabled === false) return;
     return attachWheelEvent(elementRef.current, lib.onWheel, { passive: false });
-  }, [lib?.onWheel]);
+  }, [lib?.onWheel, wheelEnabled]);
 
   useEffect(() => {
     if (!elementRef.current) return;
 
-    function updateCanvasSize() {
-      updateRect();
-      onResizeRef.current?.(dataRef.current);
-    }
-
-    const ro = new ResizeObserver(updateCanvasSize);
+    const ro = new ResizeObserver(() => onResizeRef.current?.(dataRef.current));
     ro.observe(elementRef.current);
 
     return () => ro.disconnect();
   }, []);
-
-  function updateRect() {
-    rect.current = elementRef.current?.getBoundingClientRect();
-  }
-
-  useEffect(() => attachEvent("scroll", window, updateRect, { capture: true, passive: true }), []);
 
   const dataRef = useRef<ViewportRef>({
     getElement: () => elementRef.current,
@@ -104,7 +96,7 @@ export function Viewport({
     getClientHeight: () => elementRef.current?.clientHeight || 0,
     getWidth: getViewportWidth,
     getHeight: getViewportHeight,
-    getRect: () => rect.current || null,
+    getRect: () => elementRef.current?.getBoundingClientRect() ?? null,
   });
 
   useImperativeHandle(ref, () => dataRef.current);

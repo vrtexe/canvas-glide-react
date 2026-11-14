@@ -1,9 +1,9 @@
 import { useImperativeHandle, useRef } from "react";
 import type { Transform } from "canvas-glide";
-import type { Renderer, RendererConfig, RendererRef } from "./base";
-import { useAsyncMemo } from "../util/asyncMemo";
-import { createImageDataUrlSafe } from "../util/image";
-import { useIdealScale } from "../util/useIdealScale";
+import type { Renderer, RendererConfig, RendererRef } from "./base.tsx";
+import { useAsyncMemo } from "../util/asyncMemo.ts";
+import { createImageUrlSafe, revokeImageUrl } from "../util/image.ts";
+import { useIdealScale } from "../util/useIdealScale.ts";
 
 export type HtmlRendererProps = RendererConfig<typeof Renderer.Html>;
 
@@ -32,7 +32,7 @@ export function HtmlCanvas({
   const scrollerRef = useRef<HTMLDivElement>(null);
   const imgRef = useRef<HTMLImageElement>(null);
 
-  const imageSrc = useAsyncMemo(() => createImageDataUrlSafe(image), [image]);
+  const imageSrc = useAsyncMemo(() => createImageUrlSafe(image), [image], revokeImageUrl);
 
   const { idealScale, updateIdealScale, getImageRect } = useIdealScale(viewportRef, () =>
     imgRef.current ? { width: imgRef.current.naturalWidth, height: imgRef.current.naturalHeight } : null,

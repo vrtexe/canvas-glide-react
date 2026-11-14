@@ -1,10 +1,10 @@
 import { useEffect, useImperativeHandle, useRef, useState } from "react";
 import { type Transform } from "canvas-glide";
-import type { ViewportRef } from "../Viewport";
-import type { Renderer, RendererConfig, RendererRef } from "./base";
-import { useAsyncMemo } from "../util/asyncMemo";
-import { createImageDataUrlSafe } from "../util/image";
-import { useIdealScale } from "../util/useIdealScale";
+import type { ViewportRef } from "../Viewport.tsx";
+import type { Renderer, RendererConfig, RendererRef } from "./base.tsx";
+import { useAsyncMemo } from "../util/asyncMemo.ts";
+import { createImageUrlSafe, revokeImageUrl } from "../util/image.ts";
+import { useIdealScale } from "../util/useIdealScale.ts";
 
 export type ImageRendererProps = RendererConfig<typeof Renderer.Image>;
 
@@ -36,7 +36,7 @@ export function ImageCanvas({
 
   const [imageVisibility, setImageVisibility] = useState<React.CSSProperties["visibility"]>("hidden");
 
-  const imageSrc = useAsyncMemo(() => createImageDataUrlSafe(image), [image]);
+  const imageSrc = useAsyncMemo(() => createImageUrlSafe(image), [image], revokeImageUrl);
 
   const { idealScale, updateIdealScale, getImageRect } = useIdealScale(viewportRef, () =>
     imgRef.current ? { width: imgRef.current.naturalWidth, height: imgRef.current.naturalHeight } : null,
@@ -78,11 +78,13 @@ export function ImageCanvas({
     setImageVisibility("visible");
   }
 
+  /* oxlint-disable react-hooks/exhaustive-deps -- runs only when the image source changes */
   useEffect(() => {
     if (imgRef.current?.complete && imgRef.current.naturalWidth) {
       onImageLoad();
     }
   }, [imageSrc]);
+  /* oxlint-enable react-hooks/exhaustive-deps */
 
   const canvasStyle: React.CSSProperties = {
     ...defaultImageCanvasStyle,

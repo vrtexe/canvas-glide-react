@@ -1,7 +1,7 @@
 import { useMemo, useRef, type PointerEventHandler, type WheelEventHandler as ReactWheelEventHandler } from "react";
 import type { CanvasEngine, CanvasEngineOptions } from "canvas-glide";
 import { createEngine } from "canvas-glide";
-import { createConstrainer } from "./util/constraint";
+import { createConstrainer } from "./util/constraint.ts";
 
 export type GlideCanvasOptions = CanvasEngineOptions;
 
@@ -26,6 +26,7 @@ export type GlideCanvasInstance = CanvasEngine & {
   onWheel: ReactWheelEventHandler<HTMLDivElement> & WheelEventHandler<Element>;
 };
 
+/** Creates the engine once: callbacks and rect getters follow the latest config, all other options are read at mount. */
 export function useGlideCanvas(config: GlideCanvasOptions): GlideCanvasInstance {
   const engineRef = useRef<CanvasEngine | null>(null);
 
@@ -40,13 +41,11 @@ export function useGlideCanvas(config: GlideCanvasOptions): GlideCanvasInstance 
     });
 
     engineRef.current = createEngine({
-      constraints: {
-        origin: {
-          enabled: true,
-          constrain: constrainer,
-        },
-      },
       ...config,
+      constraints: {
+        ...config.constraints,
+        origin: config.constraints?.origin ?? { enabled: true, constrain: constrainer },
+      },
       getViewportRect: () => configRef.current.getViewportRect(),
       getCanvasRect: () => configRef.current.getCanvasRect(),
       state: {

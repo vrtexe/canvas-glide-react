@@ -1,6 +1,6 @@
 import { useRef, type RefObject } from "react";
 import type { Rect } from "canvas-glide";
-import type { ViewportRef } from "../Viewport";
+import type { ViewportRef } from "../Viewport.tsx";
 
 export type ContentSize = { width: number; height: number };
 

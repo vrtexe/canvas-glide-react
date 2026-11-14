@@ -1,7 +1,7 @@
 import type { Rect, Transform } from "canvas-glide";
-import type { ViewportRef } from "../Viewport";
+import type { ViewportRef } from "../Viewport.tsx";
 import { type HTMLProps, type ReactNode, type Ref, type RefObject } from 'react';
-import type { GlideCanvasInstance } from "../useGlideCanvas";
+import type { GlideCanvasInstance } from "../useGlideCanvas.ts";
 
 export type CanvasRef<T, C> = {
   getContainerRef?: () => C | null;
@@ -49,6 +49,7 @@ export type Renderer = (typeof Renderer)[keyof typeof Renderer];
 export const Renderer = Object.freeze({
   Canvas: "canvas",
   Image: "image",
+  /** Renders the image as a resized, scrolled `<img>`, not arbitrary HTML. */
   Html: "html",
 } as const);
 
