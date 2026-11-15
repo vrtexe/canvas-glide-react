@@ -120,8 +120,6 @@ Its ref, `ViewportRef`, has `getElement()`, `getRect()` (the element's client re
 
 ## Development
 
-`canvas-glide` is listed twice: `^1.0.1` in `dependencies` for consumers, and `../lib` in `devDependencies`, which npm links during local development. Build `lib` first, then:
-
 ```sh
 npm install
 npm test
@@ -132,6 +130,10 @@ npm run lint
 `npm test` runs the Vitest suite in `test/` in jsdom, with the 2D context, `createImageBitmap` and `ResizeObserver` stubbed.
 
 `npm run build` type-checks with `tsc -b` and writes `dist/` with Vite: `canvas-glide.js` (ES module) and the type declarations. `canvas-glide`, `react` and `react/jsx-runtime` stay external.
+
+`canvas-glide` comes from npm. To work against an unreleased engine, build it and run `npm link ../lib` (the path to a local `canvas-glide` checkout); `npm install` restores the published version.
+
+Publishing a GitHub release runs `.github/workflows/npm-publish.yml`: it lints, tests and builds the tag, sets `package.json` on the default branch to the release version, and stages the package on npm with trusted publishing; `npm stage approve` publishes it.
 
 ## License
 
