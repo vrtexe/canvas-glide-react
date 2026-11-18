@@ -38,7 +38,7 @@ export function ImageCanvas({
 
   const imageSrc = useAsyncMemo(() => createImageUrlSafe(image), [image], revokeImageUrl);
 
-  const { idealScale, updateIdealScale, getImageRect } = useIdealScale(viewportRef, () =>
+  const { idealScale, updateIdealScale, fitWhenSized, getImageRect } = useIdealScale(viewportRef, lib, () =>
     imgRef.current ? { width: imgRef.current.naturalWidth, height: imgRef.current.naturalHeight } : null,
   );
 
@@ -68,12 +68,11 @@ export function ImageCanvas({
   }
 
   function onImageLoad() {
+    fitWhenSized();
     updateIdealScale();
     updateSize();
 
-    // Content is measurable now — center the freshly loaded image. fit() only
-    // emits when the transform actually changes, so redraw explicitly too.
-    lib?.fit();
+    // fit() only emits when the transform actually changes, so redraw explicitly too.
     redraw();
     setImageVisibility("visible");
   }

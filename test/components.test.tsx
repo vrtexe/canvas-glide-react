@@ -16,13 +16,23 @@ import {
 
 // jsdom has no layout, no ResizeObserver, no 2D context and no createImageBitmap.
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
-globalThis.ResizeObserver ??= class {
-  observe() {}
+const resizeCallbacks = new Set<() => void>();
+globalThis.ResizeObserver = class {
+  constructor(private callback: () => void) {}
+  observe() {
+    resizeCallbacks.add(this.callback);
+  }
   unobserve() {}
-  disconnect() {}
-};
-Object.defineProperty(HTMLElement.prototype, "clientWidth", { configurable: true, get: () => 1000 });
-Object.defineProperty(HTMLElement.prototype, "clientHeight", { configurable: true, get: () => 700 });
+  disconnect() {
+    resizeCallbacks.delete(this.callback);
+  }
+} as unknown as typeof ResizeObserver;
+let layout = { width: 1000, height: 700 };
+Object.defineProperty(HTMLElement.prototype, "clientWidth", { configurable: true, get: () => layout.width });
+Object.defineProperty(HTMLElement.prototype, "clientHeight", { configurable: true, get: () => layout.height });
+Object.defineProperty(HTMLImageElement.prototype, "naturalWidth", { configurable: true, get: () => 300 });
+Object.defineProperty(HTMLImageElement.prototype, "naturalHeight", { configurable: true, get: () => 300 });
+Element.prototype.scrollTo ??= () => {};
 globalThis.createImageBitmap = (async () => ({ width: 300, height: 300, close() {} })) as unknown as typeof createImageBitmap;
 
 type FakeContext = { calls: string[] };
@@ -51,6 +61,7 @@ afterEach(() => {
   act(() => root?.unmount());
   host?.remove();
   setDevicePixelRatio(1);
+  layout = { width: 1000, height: 700 };
 });
 
 async function render(node: ReactNode) {
@@ -169,3 +180,30 @@ test("the image renderer shows an SVG through a data: URL", async () => {
 
   assert.match(host!.querySelector("img")!.getAttribute("src") ?? "", /^data:image\/svg\+xml;base64,/);
 });
+
+for (const renderer of [Renderer.Canvas, Renderer.Image, Renderer.Html]) {
+  test(`the ${renderer} renderer fits an image that loaded before the viewport had a size once it has one`, async () => {
+    layout = { width: 0, height: 0 };
+    const glide = createRef<GlideCanvasRef>();
+    await render(<GlideCanvas ref={glide} renderer={renderer} image={new Blob(["<svg xmlns='http://www.w3.org/2000/svg'/>"], { type: "image/svg+xml" })} />);
+    await settle();
+    glide.current!.viewportRef!.getElement()!.getBoundingClientRect = () => ({ x: 0, y: 0, ...layout }) as DOMRect;
+    await act(async () => host!.querySelector("img")?.dispatchEvent(new Event("load")));
+    await settle();
+
+    layout = { width: 1000, height: 700 };
+    await act(async () => resizeCallbacks.forEach((callback) => callback()));
+    await settle();
+
+    // A 300×300 image fitted into 1000×700 is 700×700 at scale 1.
+    const fitted = structuredClone(glide.current!.getTransform());
+    assert.deepEqual(fitted, { scale: 1, origin: { x: -150, y: 0 } });
+
+    glide.current!.panTo({ x: 10, y: 20 });
+    layout = { width: 900, height: 700 };
+    await act(async () => resizeCallbacks.forEach((callback) => callback()));
+    await settle();
+
+    assert.deepEqual(glide.current!.getOrigin(), { x: 10, y: 20 });
+  });
+}
