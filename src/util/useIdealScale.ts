@@ -1,6 +1,7 @@
 import { useRef, type RefObject } from "react";
 import type { Rect } from "canvas-glide";
 import type { ViewportRef } from "../Viewport.tsx";
+import type { GlideCanvasInstance } from "../useGlideCanvas.ts";
 
 export type ContentSize = { width: number; height: number };
 
@@ -11,9 +12,16 @@ export type ContentSize = { width: number; height: number };
  */
 export function useIdealScale(
   viewportRef: RefObject<ViewportRef | null> | undefined,
+  lib: GlideCanvasInstance | undefined,
   getContentSize: () => ContentSize | null,
 ) {
   const idealScale = useRef(1);
+  const fitPending = useRef(false);
+
+  /** Fits the view on the next update with a sized viewport, so an image loaded while the viewport had no size is fitted once it has one. */
+  function fitWhenSized() {
+    fitPending.current = true;
+  }
 
   function updateIdealScale() {
     const viewport = viewportRef?.current;
@@ -23,10 +31,14 @@ export function useIdealScale(
       return;
     }
 
-    idealScale.current = Math.min(
-      viewport.getClientWidth() / size.width,
-      viewport.getClientHeight() / size.height,
-    );
+    const width = viewport.getClientWidth();
+    const height = viewport.getClientHeight();
+    idealScale.current = Math.min(width / size.width, height / size.height);
+
+    if (fitPending.current && width && height) {
+      fitPending.current = false;
+      lib?.fit();
+    }
   }
 
   /** The scale-1 content frame — what the engine's getCanvasRect expects. */
@@ -40,5 +52,5 @@ export function useIdealScale(
     };
   }
 
-  return { idealScale, updateIdealScale, getImageRect };
+  return { idealScale, updateIdealScale, fitWhenSized, getImageRect };
 }

@@ -47,7 +47,7 @@ export function Viewer() {
 
 ## Renderers
 
-`renderer` picks how the image is drawn. All three use the same engine and the same coordinates; a renderer calls `fit()` when its image has loaded, so switching renderers starts from the fitted view.
+`renderer` picks how the image is drawn. All three use the same engine and the same coordinates; a renderer calls `fit()` once its image has loaded and the viewer has a size, so switching renderers starts from the fitted view.
 
 | Renderer | How it draws | `canvasConfig.children` |
 |---|---|---|

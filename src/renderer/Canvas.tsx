@@ -47,7 +47,7 @@ export function Canvas({ viewportRef, ref, afterDraw, image, lib, container, con
     if (canvasContext.current) applySmoothing(canvasContext.current);
   }, []);
 
-  const { idealScale, updateIdealScale, getImageRect } = useIdealScale(viewportRef, () => ({
+  const { idealScale, updateIdealScale, fitWhenSized, getImageRect } = useIdealScale(viewportRef, lib, () => ({
     width: offscreenCanvas.width,
     height: offscreenCanvas.height,
   }));
@@ -63,11 +63,10 @@ export function Canvas({ viewportRef, ref, afterDraw, image, lib, container, con
 
     updateOffscreenCanvas(imageBitmap);
     handleViewportResize(viewportRef?.current);
+    fitWhenSized();
     updateIdealScale();
 
-    // Content is measurable now — center the freshly loaded image. fit() only
-    // emits when the transform actually changes, so draw explicitly too.
-    lib?.fit();
+    // fit() only emits when the transform actually changes, so draw explicitly too.
     draw(lib?.stateService.getTransform());
   }, [imageBitmap]);
   /* oxlint-enable react-hooks/exhaustive-deps */
@@ -82,7 +81,8 @@ export function Canvas({ viewportRef, ref, afterDraw, image, lib, container, con
   }
 
   function draw(transform?: Transform) {
-    if (!canvasRef.current || !transform || !imageBitmap) return;
+    // The offscreen canvas is filled in an effect after paint; a ResizeObserver or frame callback can draw before it.
+    if (!canvasRef.current || !transform || !imageBitmap || !offscreenCanvas.width) return;
 
     const canvas = canvasRef.current;
     const scale = transform.scale;
