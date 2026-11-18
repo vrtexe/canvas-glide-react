@@ -82,7 +82,8 @@ export function Canvas({ viewportRef, ref, afterDraw, image, lib, container, con
   }
 
   function draw(transform?: Transform) {
-    if (!canvasRef.current || !transform || !imageBitmap) return;
+    // The offscreen canvas is filled in an effect after paint; a ResizeObserver or frame callback can draw before it.
+    if (!canvasRef.current || !transform || !imageBitmap || !offscreenCanvas.width) return;
 
     const canvas = canvasRef.current;
     const scale = transform.scale;
